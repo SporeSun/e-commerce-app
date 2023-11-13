@@ -8,7 +8,7 @@ router.get('/', (req, res) => {
   // find all products
   // be sure to include its associated Category and Tag data
   try {
-    const productData = Category.findAll(req.body, {
+    const productData = Product.findAll(req.body, {
       include: [
         { model: Tag, through: ProductTag, as: 'product_tag' },
         {model: Category, through: Product.category_id, as:'product_id'}
@@ -25,10 +25,10 @@ router.get('/:id', (req, res) => {
   // find a single product by its `id`
   // be sure to include its associated Category and Tag data
   try {
-    const productData = category.findByPk(req.params.id, {
+    const productData = Product.findByPk(req.params.id, {
       include: [
         { model: Tag, through: ProductTag, as: 'product_tag' },
-        {model: Category, through: Product.category_id, as:'product_id'}
+        {model: Category}
       ]
     });
 
@@ -120,8 +120,39 @@ router.put('/:id', (req, res) => {
     });
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   // delete one product by its `id` value
+  const productId = req.params.id;
+
+  // Start a transaction
+  const t = await sequelize.transaction();
+
+  try {
+    // Delete associated ProductTag entries
+    await ProductTag.destroy({
+      where: { product_id: productId },
+      transaction: t
+    });
+
+    // Delete the product
+    const productData = await Product.destroy({
+      where: { id: productId },
+      transaction: t
+    });
+
+    // If no product found, handle error
+    if (!productData) {
+      await t.rollback(); // Rollback the transaction
+      res.status(404).json({ message: 'No product found with this id!' });
+      return;
+    }
+
+    await t.commit(); // Commit the transaction
+    res.status(200).json({ message: 'Product deleted successfully.' });
+  } catch (err) {
+    await t.rollback(); // Rollback the transaction in case of error
+    res.status(500).json(err);
+  }
 });
 
 module.exports = router;
