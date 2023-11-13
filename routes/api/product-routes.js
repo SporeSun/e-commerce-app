@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { Product, Category, Tag, ProductTag } = require('../../models');
 
+
 // The `/api/products` endpoint
 
 // get all products
@@ -88,32 +89,28 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const productId = req.params.id;
 
-  const t = await sequelize.transaction();
-
   try {
+    // First, delete associated ProductTag entries
     await ProductTag.destroy({
-      where: { product_id: productId },
-      transaction: t
+      where: { product_id: productId }
     });
 
+    // Then, delete the product
     const productData = await Product.destroy({
-      where: { id: productId },
-      transaction: t
+      where: { id: productId }
     });
 
     if (!productData) {
-      await t.rollback();
       res.status(404).json({ message: 'No product found with this id!' });
       return;
     }
 
-    await t.commit();
     res.status(200).json({ message: 'Product deleted successfully.' });
   } catch (err) {
-    await t.rollback();
     res.status(500).json(err);
   }
 });
+
 
 
 module.exports = router;
